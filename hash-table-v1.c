@@ -6,6 +6,7 @@
 #include <sys/queue.h>
 #include <pthread.h>
 
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct list_entry {
 	const char *key;
@@ -32,6 +33,25 @@ struct hash_table_v1 *hash_table_v1_create()
 		SLIST_INIT(&entry->list_head);
 	}
 	return hash_table;
+}
+
+void hash_table_v1_destroy(struct hash_table_v1 *hash_table)
+{
+	for (size_t i = 0; i < HASH_TABLE_CAPACITY; ++i) {
+		struct hash_table_entry *entry = &hash_table->entries[i];
+		struct list_head *list_head = &entry->list_head;
+		struct list_entry *list_entry = NULL;
+		while (!SLIST_EMPTY(list_head)) {
+			list_entry = SLIST_FIRST(list_head);
+			SLIST_REMOVE_HEAD(list_head, pointers);
+			free(list_entry);
+		}
+	}
+	free(hash_table);
+	int rc=pthread_mutex_destroy(&mutex);
+	if(rc!=0){
+	  exit(rc);
+	}
 }
 
 static struct hash_table_entry *get_hash_table_entry(struct hash_table_v1 *hash_table,
@@ -72,10 +92,11 @@ void hash_table_v1_add_entry(struct hash_table_v1 *hash_table,
                              const char *key,
                              uint32_t value)
 {
-        static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
         int rc=pthread_mutex_lock(&mutex);
-	assert(rc==0);
-	
+	if(rc!=0){
+	  hash_table_v1_destroy(hash_table);
+	  exit(rc);
+	}
 	struct hash_table_entry *hash_table_entry = get_hash_table_entry(hash_table, key);
 	struct list_head *list_head = &hash_table_entry->list_head;
 	struct list_entry *list_entry = get_list_entry(hash_table, key, list_head);
@@ -92,8 +113,10 @@ void hash_table_v1_add_entry(struct hash_table_v1 *hash_table,
 	SLIST_INSERT_HEAD(list_head, list_entry, pointers);
 
 	int rc2=pthread_mutex_unlock(&mutex);
-	assert(rc2==0);
-
+        if(rc2!=0){
+	  hash_table_v1_destroy(hash_table);
+	  exit(rc2);
+	}
 }
 
 uint32_t hash_table_v1_get_value(struct hash_table_v1 *hash_table,
@@ -104,19 +127,4 @@ uint32_t hash_table_v1_get_value(struct hash_table_v1 *hash_table,
 	struct list_entry *list_entry = get_list_entry(hash_table, key, list_head);
 	assert(list_entry != NULL);
 	return list_entry->value;
-}
-
-void hash_table_v1_destroy(struct hash_table_v1 *hash_table)
-{
-	for (size_t i = 0; i < HASH_TABLE_CAPACITY; ++i) {
-		struct hash_table_entry *entry = &hash_table->entries[i];
-		struct list_head *list_head = &entry->list_head;
-		struct list_entry *list_entry = NULL;
-		while (!SLIST_EMPTY(list_head)) {
-			list_entry = SLIST_FIRST(list_head);
-			SLIST_REMOVE_HEAD(list_head, pointers);
-			free(list_entry);
-		}
-	}
-	free(hash_table);
 }
