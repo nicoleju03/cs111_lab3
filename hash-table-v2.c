@@ -7,7 +7,7 @@
 
 #include <pthread.h>
 
-static pthread_mutex_t mutexes[HASH_TABLE_CAPACITY];
+static pthread_mutex_t mutexes[HASH_TABLE_CAPACITY] = {PTHREAD_MUTEX_INITIALIZER};
 
 struct list_entry {
 	const char *key;
@@ -32,11 +32,11 @@ struct hash_table_v2 *hash_table_v2_create()
 	for (size_t i = 0; i < HASH_TABLE_CAPACITY; ++i) {
 		struct hash_table_entry *entry = &hash_table->entries[i];
 		SLIST_INIT(&entry->list_head);
-		int rc=pthread_mutex_init(&mutexes[i],NULL);
-	        if(rc!=0){
-		  free(hash_table);
-		  exit(rc);
-		}
+		//		int rc=pthread_mutex_init(&mutexes[i],NULL);
+		// if(rc!=0){
+		//  free(hash_table);
+		//  exit(rc);
+		//	}
 	}
 	return hash_table;
 }
